@@ -53,7 +53,7 @@ class float_range:
         if isinstance(key, slice):
             if key.start is None and key.stop is None and key.step == -1:
                 return float_range(
-                    start=self.stop - self.step,
+                    start=self.start + (len(self) - 1) * self.step,
                     stop=self.start - self.step,
                     step=-self.step,
                 )
@@ -68,24 +68,18 @@ class float_range:
 
     def __next__(self):
         self.current += self.step
-        if self.current < self.stop:
+        if self.current < self.stop and not np.isclose(self.current, self.stop):
             return self.current
         raise StopIteration
 
-    def index(self, key):
+    def index(self, key) -> int:
         if key not in self:
             raise ValueError
         return round((key - self.start) / self.step)
 
     @property
-    def length(self):
-        if self.step > 0:
-            lo, hi = self.start, self.stop
-            step = self.step
-        else:
-            hi, lo = self.start, self.stop
-            step = -self.step
-        if lo > hi or np.isclose(lo, hi):
-            return 0
-        else:
-            return round((hi - lo - step) / step + 1)
+    def length(self) -> int:
+        estimate = (self.stop - self.start) // self.step
+        if not np.isclose(self.start + estimate * self.step, self.stop):
+            estimate += 1
+        return estimate
