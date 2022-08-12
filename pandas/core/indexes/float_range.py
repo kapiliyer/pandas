@@ -37,6 +37,7 @@ class float_range:
             (self.start < key or np.isclose(self.start, key))
             # Imprecision checking: key strictly less than self.stop
             and (key < self.stop and not np.isclose(self.stop, key))
+            # Imprecision checking: nx % x => 0
             and (
                 np.isclose(closeness_to_range, 0)
                 or np.isclose(closeness_to_range, self.step)
