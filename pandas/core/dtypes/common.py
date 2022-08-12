@@ -112,33 +112,34 @@ def ensure_str(value: bytes | Any) -> str:
     return value
 
 
-def ensure_python_int(value: int | np.integer) -> int:
+def ensure_python_intfloat(
+    value: int | float | np.integer | np.inexact, coerce_float: bool
+) -> int | float:
     """
-    Ensure that a value is a python int.
+    Ensure that a value is a python int or float.
 
     Parameters
     ----------
-    value: int or numpy.integer
+    value: int or float or numpy.integer or numpy.complex_
+    coerce_float: bool
 
     Returns
     -------
-    int
+    int or float
 
     Raises
     ------
-    TypeError: if the value isn't an int or can't be converted to one.
+    TypeError: if the value isn't an int/float and can't be converted to either.
     """
-    if not (is_integer(value) or is_float(value)):
+    if is_integer(value) or is_float(value):
+        new_value = float(value) if coerce_float else int(value)
+        assert np.isclose(value, new_value) if coerce_float else value == new_value
+    else:
         if not is_scalar(value):
             raise TypeError(
                 f"Value needs to be a scalar value, was type {type(value).__name__}"
             )
         raise TypeError(f"Wrong type {type(value)} for value {value}")
-    try:
-        new_value = int(value)
-        assert new_value == value
-    except (TypeError, ValueError, AssertionError) as err:
-        raise TypeError(f"Wrong type {type(value)} for value {value}") from err
     return new_value
 
 
@@ -1822,7 +1823,7 @@ __all__ = [
     "DT64NS_DTYPE",
     "ensure_float",
     "ensure_float64",
-    "ensure_python_int",
+    "ensure_python_intfloat",
     "ensure_str",
     "get_dtype",
     "infer_dtype_from_object",

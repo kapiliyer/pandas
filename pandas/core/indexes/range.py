@@ -35,11 +35,11 @@ from pandas.util._exceptions import find_stack_level
 
 from pandas.core.dtypes.common import (
     ensure_platform_int,
-    ensure_python_int,
+    ensure_python_intfloat,
     is_float,
     is_integer,
+    is_numeric_dtype,
     is_scalar,
-    is_signed_integer_dtype,
     is_timedelta64_dtype,
 )
 from pandas.core.dtypes.generic import ABCTimedeltaIndex
@@ -50,6 +50,7 @@ import pandas.core.common as com
 from pandas.core.construction import extract_array
 import pandas.core.indexes.base as ibase
 from pandas.core.indexes.base import maybe_extract_name
+from pandas.core.indexes.float_range import float_range
 from pandas.core.indexes.numeric import (
     Float64Index,
     Int64Index,
@@ -67,20 +68,20 @@ class RangeIndex(NumericIndex):
     """
     Immutable Index implementing a monotonic integer range.
 
-    RangeIndex is a memory-saving special case of Int64Index limited to
-    representing monotonic ranges. Using RangeIndex may in some instances
-    improve computing speed.
+    RangeIndex is a memory-saving special case of NumericIndex
+    limited to representing monotonic ranges. Using RangeIndex may in some
+    instances improve computing speed.
 
-    This is the default index type used
-    by DataFrame and Series when no explicit index is provided by the user.
+    This is the default index type used by DataFrame and Series when no
+    explicit index is provided by the user.
 
     Parameters
     ----------
-    start : int (default: 0), range, or other RangeIndex instance
-        If int and "stop" is not given, interpreted as "stop" instead.
-    stop : int (default: 0)
-    step : int (default: 1)
-    dtype : np.int64
+    start : int|float (default: 0), range, or other RangeIndex instance
+        If int|float and "stop" is not given, interpreted as "stop" instead.
+    stop : int|float (default: 0)
+    step : int|float (default: 1)
+    dtype : np.int64|np.float64
         Unused, accepted for homogeneity with other index types.
     copy : bool, default False
         Unused, accepted for homogeneity with other index types.
@@ -101,16 +102,17 @@ class RangeIndex(NumericIndex):
     --------
     Index : The base pandas Index type.
     Int64Index : Index of int64 data.
+    Float64Index : Index of float64 data
     """
 
     _typ = "rangeindex"
-    _dtype_validation_metadata = (is_signed_integer_dtype, "signed integer")
-    _range: range
+    _dtype_validation_metadata = (is_numeric_dtype, "numeric type")
+    _range: range | float_range
     _is_backward_compat_public_numeric_index: bool = False
 
     @property
-    def _engine_type(self) -> type[libindex.Int64Engine]:
-        return libindex.Int64Engine
+    def _engine_type(self) -> type[libindex.IndexEngine]:
+        return libindex.Float64Engine if is_float(self.start) else libindex.Int64Engine
 
     # --------------------------------------------------------------------
     # Constructors
@@ -135,25 +137,36 @@ class RangeIndex(NumericIndex):
 
         # validate the arguments
         if com.all_none(start, stop, step):
-            raise TypeError("RangeIndex(...) must be called with integers")
+            raise TypeError("RangeIndex(...) must be called with integers/floats")
 
-        start = ensure_python_int(start) if start is not None else 0
+        # check if any of the arguments is a float
+        coerce_float = any(is_float(attr) for attr in [start, stop, step])
+
+        start = ensure_python_intfloat(start, coerce_float) if start is not None else 0
 
         if stop is None:
-            start, stop = 0, start
+            start, stop = 0.0 if coerce_float else 0, start
         else:
-            stop = ensure_python_int(stop)
+            stop = ensure_python_intfloat(stop, coerce_float)
 
-        step = ensure_python_int(step) if step is not None else 1
+        step = (
+            ensure_python_intfloat(step, coerce_float)
+            if step is not None
+            else 1.0
+            if coerce_float
+            else 1
+        )
         if step == 0:
             raise ValueError("Step must not be zero")
 
-        rng = range(start, stop, step)
+        rng = (
+            float_range(start, stop, step) if coerce_float else range(start, stop, step)
+        )
         return cls._simple_new(rng, name=name)
 
     @classmethod
     def from_range(
-        cls, data: range, name=None, dtype: Dtype | None = None
+        cls, data: range | float_range, name=None, dtype: Dtype | None = None
     ) -> RangeIndex:
         """
         Create RangeIndex from a range object.
@@ -162,7 +175,7 @@ class RangeIndex(NumericIndex):
         -------
         RangeIndex
         """
-        if not isinstance(data, range):
+        if not isinstance(data, range) and not isinstance(data, float_range):
             raise TypeError(
                 f"{cls.__name__}(...) must be called with object coercible to a "
                 f"range, {repr(data)} was passed"
@@ -171,10 +184,12 @@ class RangeIndex(NumericIndex):
         return cls._simple_new(data, name=name)
 
     @classmethod
-    def _simple_new(cls, values: range, name: Hashable = None) -> RangeIndex:
+    def _simple_new(
+        cls, values: range | float_range, name: Hashable = None
+    ) -> RangeIndex:
         result = object.__new__(cls)
 
-        assert isinstance(values, range)
+        assert isinstance(values, range) or isinstance(values, float_range)
 
         result._range = values
         result._name = name
@@ -184,12 +199,12 @@ class RangeIndex(NumericIndex):
 
     # --------------------------------------------------------------------
 
-    # error: Return type "Type[Int64Index]" of "_constructor" incompatible with return
+    # error: Return type "Type[NumericIndex]" of "_constructor" incompatible with return
     # type "Type[RangeIndex]" in supertype "Index"
     @cache_readonly
-    def _constructor(self) -> type[Int64Index]:  # type: ignore[override]
+    def _constructor(self) -> type[NumericIndex]:  # type: ignore[override]
         """return the class to use for construction"""
-        return Int64Index
+        return Float64Index if is_float(self.start) else Int64Index
 
     # error: Signature of "_data" incompatible with supertype "Index"
     @cache_readonly
@@ -199,7 +214,12 @@ class RangeIndex(NumericIndex):
 
         The constructed array is saved in ``_cache``.
         """
-        return np.arange(self.start, self.stop, self.step, dtype=np.int64)
+        return np.arange(
+            self.start,
+            self.stop,
+            self.step,
+            dtype=np.float64 if is_float(self.start) else np.int64,
+        )
 
     def _get_data_as_items(self):
         """return a list of tuples of start, stop, step"""
@@ -352,7 +372,7 @@ class RangeIndex(NumericIndex):
 
     @property
     def dtype(self) -> np.dtype:
-        return np.dtype(np.int64)
+        return np.dtype(np.float64 if is_float(self.start) else np.int64)
 
     @property
     def is_unique(self) -> bool:
@@ -370,14 +390,14 @@ class RangeIndex(NumericIndex):
     def __contains__(self, key: Any) -> bool:
         hash(key)
         try:
-            key = ensure_python_int(key)
+            key = ensure_python_intfloat(key, True)
         except TypeError:
             return False
         return key in self._range
 
     @property
     def inferred_type(self) -> str:
-        return "integer"
+        return "float" if is_float(self.start) else "integer"
 
     # --------------------------------------------------------------------
     # Indexing Methods

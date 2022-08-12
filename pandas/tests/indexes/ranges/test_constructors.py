@@ -153,15 +153,6 @@ class TestRangeIndexConstructors:
 
         tm.assert_index_equal(index, expected, exact="equiv")
 
-        # non-int raise Exception
+        # non-int/float raise Exception
         with pytest.raises(TypeError, match=r"Wrong type \<class 'str'\>"):
             RangeIndex("1", "10", "1")
-        with pytest.raises(TypeError, match=r"Wrong type \<class 'float'\>"):
-            RangeIndex(1.1, 10.2, 1.3)
-
-        # invalid passed type
-        with pytest.raises(
-            ValueError,
-            match="Incorrect `dtype` passed: expected signed integer, received float64",
-        ):
-            RangeIndex(1, 5, dtype="float64")
