@@ -33,7 +33,9 @@ class float_range:
     def __contains__(self, key):
         closeness_to_range = (key - self.start) % self.step
         return (
+            # Imprecision checking: self.start less than or equal to key
             (self.start < key or np.isclose(self.start, key))
+            # Imprecision checking: key strictly less than self.stop
             and (key < self.stop and not np.isclose(self.stop, key))
             and (
                 np.isclose(closeness_to_range, 0)
@@ -68,6 +70,7 @@ class float_range:
 
     def __next__(self):
         self.current += self.step
+        # Imprecision checking: self.current strictly less than self.stop
         if self.current < self.stop and not np.isclose(self.current, self.stop):
             return self.current
         raise StopIteration
@@ -79,7 +82,16 @@ class float_range:
 
     @property
     def length(self) -> int:
-        estimate = (self.stop - self.start) // self.step
-        if not np.isclose(self.start + estimate * self.step, self.stop):
+        if self.stop > 0:
+            lo, hi = self.start, self.stop
+            step = self.step
+        else:
+            hi, lo = self.start, self.stop
+            step = -self.step
+        if lo >= hi:
+            return 0
+        estimate = (hi - lo) // step
+        # Imprecision checking: estimate is either an underestimate or correct
+        if not np.isclose(lo + estimate * step, hi):
             estimate += 1
-        return estimate
+        return int(estimate)
