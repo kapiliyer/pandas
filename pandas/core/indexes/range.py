@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import inspect
 import operator
 from sys import getsizeof
 from typing import (
@@ -283,7 +284,7 @@ class RangeIndex(NumericIndex):
         warnings.warn(
             self._deprecation_message.format("_start", "start"),
             FutureWarning,
-            stacklevel=find_stack_level(),
+            stacklevel=find_stack_level(inspect.currentframe()),
         )
         return self.start
 
@@ -306,7 +307,7 @@ class RangeIndex(NumericIndex):
         warnings.warn(
             self._deprecation_message.format("_stop", "stop"),
             FutureWarning,
-            stacklevel=find_stack_level(),
+            stacklevel=find_stack_level(inspect.currentframe()),
         )
         return self.stop
 
@@ -330,7 +331,7 @@ class RangeIndex(NumericIndex):
         warnings.warn(
             self._deprecation_message.format("_step", "step"),
             FutureWarning,
-            stacklevel=find_stack_level(),
+            stacklevel=find_stack_level(inspect.currentframe()),
         )
         return self.step
 
@@ -491,7 +492,7 @@ class RangeIndex(NumericIndex):
                 "parameter dtype is deprecated and will be removed in a future "
                 "version. Use the astype method instead.",
                 FutureWarning,
-                stacklevel=find_stack_level(),
+                stacklevel=find_stack_level(inspect.currentframe()),
             )
             new_index = new_index.astype(dtype)
         return new_index
