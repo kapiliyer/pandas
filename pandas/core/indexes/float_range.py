@@ -11,7 +11,7 @@ class float_range:
     ----------
     start : float (default: 0.0)
         If "stop" is not given, interpreted as "stop" instead.
-    stop : float (default: 0.0)
+    stop : float (default: None)
     step : float (default: 1.0)
 
     Attributes
@@ -20,9 +20,13 @@ class float_range:
     stop
     step
     current
+
+    Methods
+    ----------
+    index
     """
 
-    def __init__(self, start=0.0, stop=0.0, step=1.0):
+    def __init__(self, start, stop=None, step=1.0):
         if stop is None:
             stop, start = start, 0.0
         self.start = start
@@ -31,17 +35,14 @@ class float_range:
         self.step = step
 
     def __contains__(self, key):
-        closeness_to_range = (key - self.start) % self.step
+        epsilon = (key - self.start) % self.step
         return (
             # Imprecision checking: self.start less than or equal to key
             (self.start < key or np.isclose(self.start, key))
             # Imprecision checking: key strictly less than self.stop
             and (key < self.stop and not np.isclose(self.stop, key))
             # Imprecision checking: nx % x => 0
-            and (
-                np.isclose(closeness_to_range, 0)
-                or np.isclose(closeness_to_range, self.step)
-            )
+            and (np.isclose(epsilon, 0) or np.isclose(epsilon, self.step))
         )
 
     def __eq__(self, other):
@@ -52,16 +53,43 @@ class float_range:
         )
 
     def __getitem__(self, key):
-        # Allows for reversing
         if isinstance(key, slice):
-            if key.start is None and key.stop is None and key.step == -1:
-                return float_range(
-                    start=self.start + (len(self) - 1) * self.step,
-                    stop=self.start - self.step,
-                    step=-self.step,
+            epsilon = (self.stop - self.start) % self.step
+            # Imprecision checking: nx % x => 0
+            if not np.isclose(epsilon, self.stop) and not np.isclose(epsilon, 0):
+                # Round self.stop such that (self.stop - self.start) % self.step == 0
+                stop = (
+                    self.stop + (self.step - epsilon)
+                    if epsilon > 0
+                    else self.stop + epsilon
                 )
-            raise IndexError
-        raise TypeError
+            else:
+                stop = self.stop
+            if slice.step is not None:
+                if slice.step < 0:
+                    stop = max(
+                        self.start, self.start + (self.length + slice.stop) * self.step
+                    )
+                else:
+                    stop = min(stop, self.start + self.step * slice.stop)
+            if slice.start is not None:
+                if slice.start < 0:
+                    start = max(self.start, stop + slice.start * self.step)
+                else:
+                    start = min(stop, self.start + slice.start * self.step)
+            else:
+                start = self.start
+            step = self.step if slice.step is None else self.step * slice.step
+            return float_range(start, stop, step)
+        if isinstance(key, int):
+            if key >= 0:
+                ith = self.start + key * self.step
+            else:
+                ith = self.start + (self.length + key) * self.step
+            if ith in self:
+                return ith
+            raise IndexError("range object index out of range")
+        raise TypeError("range indices must be integers or slices, not float")
 
     def __iter__(self):
         return self
@@ -78,7 +106,7 @@ class float_range:
 
     def index(self, key) -> int:
         if key not in self:
-            raise ValueError
+            raise ValueError(f"{key} is not in range")
         return round((key - self.start) / self.step)
 
     @property

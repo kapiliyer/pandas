@@ -78,11 +78,11 @@ class RangeIndex(NumericIndex):
 
     Parameters
     ----------
-    start : int|float (default: 0), range, or other RangeIndex instance
-        If int|float and "stop" is not given, interpreted as "stop" instead.
-    stop : int|float (default: 0)
-    step : int|float (default: 1)
-    dtype : np.int64|np.float64
+    start : int | float (default: 0), range, or other RangeIndex instance
+        If int | float and "stop" is not given, interpreted as "stop" instead.
+    stop : int | float (default: 0)
+    step : int | float (default: 1)
+    dtype : np.int64 | np.float64
         Unused, accepted for homogeneity with other index types.
     copy : bool, default False
         Unused, accepted for homogeneity with other index types.
@@ -176,7 +176,7 @@ class RangeIndex(NumericIndex):
         -------
         RangeIndex
         """
-        if not isinstance(data, range) and not isinstance(data, float_range):
+        if not isinstance(data, (range, float_range)):
             raise TypeError(
                 f"{cls.__name__}(...) must be called with object coercible to a "
                 f"range, {repr(data)} was passed"
@@ -190,7 +190,7 @@ class RangeIndex(NumericIndex):
     ) -> RangeIndex:
         result = object.__new__(cls)
 
-        assert isinstance(values, range) or isinstance(values, float_range)
+        assert isinstance(values, (range, float_range))
 
         result._range = values
         result._name = name

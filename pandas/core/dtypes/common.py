@@ -119,10 +119,13 @@ def ensure_python_intfloat(
 ) -> int | float:
     """
     Ensure that a value is a python int or float.
+    If coerce_float is True, ensures that the value can be converted to
+    a float and returns the converted value; if False, ensure that the
+    value can be converted to an int and returns the converted value.
 
     Parameters
     ----------
-    value: int or float or numpy.integer or numpy.complex_
+    value: int or float or numpy.integer or numpy.inexact
     coerce_float: bool
 
     Returns
